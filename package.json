@@ -13,6 +13,6 @@
     "test": "node --test test/"
   },
   "dependencies": {
-    "ws": "8.18.0"
+    "ws": "8.22.0"
   }
 }
