@@ -1,0 +1,7 @@
+# Render Blueprint (optional): the lobby as a free web service with a health check.
+services:
+  - type: web
+    name: riftborn-lobby
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
