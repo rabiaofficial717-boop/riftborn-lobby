@@ -5,3 +5,6 @@ services:
     runtime: docker
     plan: free
     healthCheckPath: /health
+    envVars:
+      - key: PROFILE_SECRET
+        generateValue: true

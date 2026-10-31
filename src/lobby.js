@@ -307,6 +307,7 @@ class Lobby {
         ratingBefore: ratings ? ratings[side].before : null,
         ratingAfter: ratings ? ratings[side].after : null,
         profile: publicProfile(p),
+        backup: this.store.backupOf(p),
       });
     }
   }
@@ -380,7 +381,8 @@ class Lobby {
   }
 
   _sendProfile(client) {
-    client.sendJson({ t: 'profile', profile: publicProfile(this.store.get(client.id)) });
+    const p = this.store.get(client.id);
+    client.sendJson({ t: 'profile', profile: publicProfile(p), backup: this.store.backupOf(p) });
   }
 }
 

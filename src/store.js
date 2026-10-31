@@ -21,10 +21,14 @@ function sanitizeName(name) {
 /**
  * Guest profiles keyed by a secret token the client keeps (browser storage / PlayerPrefs).
  * Stored as one JSON file, written a moment after changes; swap for a database when accounts arrive.
+ *
+ * With a secret, each player also gets a signed backup of their own profile to keep. A host without a disk (Render's
+ * free plan) forgets everyone on restart; the backup lets a returning player bring their rating and record back.
  */
 class Store {
-  constructor(file) {
+  constructor(file, options = {}) {
     this.file = file;
+    this.secret = options.secret || null;
     this.players = new Map(); // id -> profile
     this.byToken = new Map(); // sha256(token) -> id
     this._saveTimer = null;
@@ -37,10 +41,13 @@ class Store {
     }
   }
 
-  /** Finds the profile for a token, or creates a new guest (returning its fresh token). */
-  login(token, name) {
+  /**
+   * Finds the profile for a token, or restores it from the player's signed backup, or creates a new guest
+   * (returning its fresh token).
+   */
+  login(token, name, backup) {
     if (typeof token === 'string' && token.length >= 32) {
-      const id = this.byToken.get(hashToken(token));
+      const id = this.byToken.get(hashToken(token)) || this.restore(token, backup);
       if (id) {
         const p = this.players.get(id);
         const clean = sanitizeName(name);
@@ -69,6 +76,42 @@ class Store {
     this.byToken.set(p.tokenHash, id);
     this.changed();
     return { profile: p, token: newToken };
+  }
+
+  /** Signed copy of a profile for its owner to keep, or null without a secret. */
+  backupOf(p) {
+    if (!this.secret || !p) return null;
+    const body = Buffer.from(JSON.stringify(p)).toString('base64url');
+    return body + '.' + this._sign(body);
+  }
+
+  /**
+   * Puts back a profile this server signed, if it belongs to the token and the server no longer knows it.
+   * Returns its id, or null.
+   */
+  restore(token, backup) {
+    if (!this.secret || typeof backup !== 'string' || backup.length > 4096) return null;
+    const dot = backup.indexOf('.');
+    if (dot < 1) return null;
+    const body = backup.slice(0, dot);
+    const sig = Buffer.from(backup.slice(dot + 1));
+    const expected = Buffer.from(this._sign(body));
+    if (sig.length !== expected.length || !crypto.timingSafeEqual(sig, expected)) return null;
+    let p;
+    try {
+      p = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'));
+    } catch {
+      return null;
+    }
+    if (!p || typeof p.id !== 'string' || p.tokenHash !== hashToken(token) || this.players.has(p.id)) return null;
+    this.players.set(p.id, p);
+    this.byToken.set(p.tokenHash, p.id);
+    this.changed();
+    return p.id;
+  }
+
+  _sign(body) {
+    return crypto.createHmac('sha256', this.secret).update(body).digest('base64url');
   }
 
   get(id) {

@@ -27,7 +27,7 @@ const MIME = {
  */
 function createServer(options = {}) {
   const staticDir = options.staticDir ? path.resolve(options.staticDir) : null;
-  const store = new Store(options.dataFile || null);
+  const store = new Store(options.dataFile || null, { secret: options.profileSecret });
   const lobby = new Lobby(store, { iceServers: options.iceServers });
 
   const server = http.createServer((req, res) => {
@@ -79,7 +79,7 @@ function createServer(options = {}) {
       ws.close();
       return null;
     }
-    const { profile, token } = store.login(msg.token, msg.name);
+    const { profile, token } = store.login(msg.token, msg.name, msg.backup);
     const client = {
       id: profile.id,
       ws,
@@ -90,7 +90,7 @@ function createServer(options = {}) {
       close: () => ws.close(),
     };
     lobby.connect(client);
-    client.sendJson({ t: 'welcome', token, profile: publicProfile(profile), online: lobby.clients.size });
+    client.sendJson({ t: 'welcome', token, profile: publicProfile(profile), backup: store.backupOf(profile), online: lobby.clients.size });
     return client;
   }
 
@@ -175,7 +175,9 @@ if (require.main === module) {
   const staticDir = process.env.STATIC_DIR === 'off' ? null : process.env.STATIC_DIR || path.join(__dirname, '..', '..', 'Builds', 'Web');
   const dataFile = process.env.DATA_FILE || path.join(__dirname, '..', 'data', 'players.json');
   const iceServers = process.env.ICE_SERVERS ? JSON.parse(process.env.ICE_SERVERS) : undefined;
-  const app = createServer({ staticDir, dataFile, iceServers }).listen(port, () => {
+  // PROFILE_SECRET turns on signed profile backups (see Store); keep it the same across restarts.
+  const profileSecret = process.env.PROFILE_SECRET || undefined;
+  const app = createServer({ staticDir, dataFile, iceServers, profileSecret }).listen(port, () => {
     console.log(`[riftborn] http://localhost:${port}  (web build: ${staticDir}, data: ${dataFile})`);
   });
   const shutdown = () => app.close(() => process.exit(0));

@@ -113,3 +113,37 @@ test('old clients are told to reload', async () => {
     await new Promise((r) => app.close(r));
   }
 });
+
+test('a restarted server without a disk restores players from their backups', async () => {
+  const start = async () => {
+    const app = createServer({ profileSecret: 'test-secret' });
+    await new Promise((r) => app.listen(0, r));
+    return app;
+  };
+  const first = await start();
+  let welcome;
+  try {
+    const c = connect(first.server.address().port);
+    await c.open();
+    c.send({ t: 'hello', version: PROTOCOL_VERSION, name: 'Alpha' });
+    welcome = await c.next('welcome');
+    assert.ok(welcome.backup, 'welcome carries a backup');
+    c.ws.close();
+  } finally {
+    await new Promise((r) => first.close(r));
+  }
+
+  const second = await start();
+  try {
+    const c = connect(second.server.address().port);
+    await c.open();
+    c.send({ t: 'hello', version: PROTOCOL_VERSION, token: welcome.token, backup: welcome.backup });
+    const back = await c.next('welcome');
+    assert.strictEqual(back.token, welcome.token);
+    assert.strictEqual(back.profile.id, welcome.profile.id);
+    assert.strictEqual(back.profile.name, 'Alpha');
+    c.ws.close();
+  } finally {
+    await new Promise((r) => second.close(r));
+  }
+});

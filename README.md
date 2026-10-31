@@ -11,7 +11,9 @@ npm start            # ws://localhost:8080/ws, health at /health
 ```
 
 Environment: `PORT` (default 8080), `DATA_FILE` (player profiles and ratings, JSON), `ICE_SERVERS` (optional
-TURN/STUN servers as JSON). `STATIC_DIR=off` keeps it from serving files.
+TURN/STUN servers as JSON), `PROFILE_SECRET` (signs a backup of each player's profile that the game sends back, so a
+host without a disk can restore ratings after a restart; keep it the same between restarts). `STATIC_DIR=off` keeps it
+from serving files.
 
 Deploy: any Docker host (`Dockerfile`), or Render (`render.yaml`).
 
